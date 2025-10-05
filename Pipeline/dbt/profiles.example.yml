@@ -1,0 +1,13 @@
+dbt_postgres_dev:
+  outputs:
+    dev:
+      type: postgres
+      host: destination_postgres
+      port: 5432
+      user: postgres
+      pass: ${DBT_PASSWORD:-secret}
+      dbname: destination_db
+      schema: public
+      threads: 1
+  target: dev
+

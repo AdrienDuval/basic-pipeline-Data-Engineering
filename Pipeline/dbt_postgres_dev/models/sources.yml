@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: destination_db
+    description: "Raw tables loaded into destination Postgres"
+    schema: public
+    tables:
+      - name: actors
+      - name: films
+      - name: film_actors
+
+

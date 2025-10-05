@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+**/logs/
+*.log
+
+# DBT artifacts
+Pipeline/dbt_postgres_dev/target/
+Pipeline/dbt_postgres_dev/logs/
+Pipeline/dbt_postgres_dev/dbt_packages/
+Pipeline/dbt/logs/
+Pipeline/dbt/dbt_packages/
+
+# Local data volumes
+data-engineering-db/
+
+# Environment files and secrets
+.env
+.env.*
+Pipeline/dbt/profiles.yml
+

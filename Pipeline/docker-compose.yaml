@@ -1,0 +1,161 @@
+#version: '3'  # Version du format docker-compose
+
+services:
+  # Service PostgreSQL source (base de données d'origine)
+
+
+  source_postgres:
+    image: postgres:15  # Utilisation de l'image officielle PostgreSQL version 15
+    environment:
+      POSTGRES_USER: postgres  # Nom d'utilisateur de la base de données
+      POSTGRES_PASSWORD: secret  # Mot de passe de l'utilisateur
+      POSTGRES_DB: source_db  # Nom de la base de données source
+    ports:
+      - '5432:5432'  # Expose PostgreSQL sur le port 5432 (hôte:conteneur)
+    networks:
+      - etl_network  # Connecte le conteneur au réseau ETL
+    volumes:
+      - ./source_db_init/init.sql:/docker-entrypoint-initdb.d/init.sql  
+      # Monte un script SQL d'initialisation qui sera exécuté au démarrage du conteneur.
+
+  # Service PostgreSQL destination (base de données cible)
+  destination_postgres:
+    image: postgres:15  # Utilisation de la même version PostgreSQL
+    environment:
+      POSTGRES_USER: postgres  # Nom d'utilisateur identique à la source
+      POSTGRES_PASSWORD: secret  # Mot de passe identique à la source
+      POSTGRES_DB: destination_db  # Nom de la base de données cible
+    ports:
+      - '5433:5432'  # Expose PostgreSQL sur un port différent (5433 sur l'hôte)
+    networks:
+      - etl_network  # Connecte le conteneur au réseau ETL
+
+  # Service pour exécuter le script ETL
+
+  # etl_script:
+  #   build: 
+  #     context: ./etl  # Spécifie le répertoire contenant le Dockerfile du script ETL
+  #     dockerfile: Dockerfile  # Nom du fichier Dockerfile utilisé pour la construction
+  #   command: ['python', 'script.py']  # Commande exécutée dans le conteneur
+  #   networks:
+  #     - etl_network  # Connecte le conteneur ETL au réseau commun
+  #   depends_on:
+  #     - source_postgres  # Attente de la disponibilité de PostgreSQL source avant le démarrage
+  #     - destination_postgres  # Attente de la disponibilité de PostgreSQL destination
+  #   healthcheck:
+  #     test: ["CMD", "python", "script.py", "status"]  # Vérification de l'état du script
+  #     interval: 30s
+  #     retries: 5
+  #     start_period: 30s
+  #     timeout: 10s    
+
+  # dbt:
+  #   image: ghcr.io/dbt-labs/dbt-postgres:1.9.0
+  #   command:
+  #     [
+  #       "run",
+  #       "--profiles-dir",
+  #       "/root",
+  #       "--project-dir",
+  #       "/dbt",
+  #       "--full-refresh"
+  #     ]
+  #   networks:
+  #     - etl_network
+  #   volumes:
+  #     - ./dbt_postgres_dev:/dbt
+  #     - ~/.dbt:/root
+  #   depends_on:
+  #     - etl_script
+  #   environment:
+  #     DBT_PROFILE: default
+  #     DBT_TARGET: dev
+  #   restart: "on-failure"
+
+  postgres:
+    image: postgres:latest
+    networks:
+      - etl_network
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+  init-airflow:
+    image: apache/airflow:2.9.1
+    depends_on:
+      - postgres
+    networks:
+      - etl_network
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    command: >
+      bash -c "airflow db init && 
+              airflow users create --username airflow --password password --firstname jean --lastname bosco --role Admin --email admin@example.com"
+
+  webserver:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      user: root
+      depends_on:
+        - postgres
+      networks:
+        - etl_network
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+      volumes:
+        - ./airflow/dags:/opt/airflow/dags
+        - ./etl:/opt/airflow/etl
+        - ./postgres_transformations:/opt/dbt
+        - ~/.dbt:/root/.dbt
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        - LOAD_EX=n
+        - EXECUTOR=Local
+        - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+        - AIRFLOW_CONN_DESTINATION_POSTGRES=postgres://postgres:secret@destination_postgres:5434/destination_db
+        - AIRFLOW__CORE__FERNET_KEY=sbtsn1hXWMBjQtRtIaJpsewOLKl-P5OHZCMpA2_eWWs=
+        - AIRFLOW__WEBSERVER__DEFAULT_USER_USERNAME=airflow
+        - AIRFLOW__WEBSERVER__DEFAULT_USER_PASSWORD=password
+        - AIRFLOW_WWW_USER_USERNAME=airflow
+        - AIRFLOW_WWW_USER_PASSWORD=password
+        - AIRFLOW__WEBSERVER__SECRET_KEY=secret
+      ports:
+        - "8080:8080"
+      command: webserver
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: root
+    depends_on:
+      - postgres
+    networks:
+      - etl_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./etl:/opt/airflow/etl
+      - ./postgres_transformations:/opt/dbt
+      - ~/.dbt:/root/.dbt
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LOAD_EX=n
+      - EXECUTOR=Local
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW_CONN_DESTINATION_POSTGRES=postgres://postgres:secret@destination_postgres:5434/destination_db
+      - AIRFLOW__CORE__FERNET_KEY=sbtsn1hXWMBjQtRtIaJpsewOLKl-P5OHZCMpA2_eWWs=
+      - AIRFLOW__WEBSERVER__DEFAULT_USER_USERNAME=airflow
+      - AIRFLOW__WEBSERVER__DEFAULT_USER_PASSWORD=password
+      - AIRFLOW_WWW_USER_USERNAME=airflow
+      - AIRFLOW_WWW_USER_PASSWORD=password
+      - AIRFLOW__WEBSERVER__SECRET_KEY=secret
+    command: scheduler
+
+# Définition du réseau Docker utilisé par tous les services
+networks:
+  etl_network:
+    driver: bridge  # Utilisation d'un réseau en mode "bridge" pour l'isolation des conteneurs
+
