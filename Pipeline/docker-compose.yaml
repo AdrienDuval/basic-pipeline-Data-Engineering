@@ -101,6 +101,8 @@ services:
         - postgres
       networks:
         - etl_network
+      env_file:
+        - .env
       extra_hosts:
         - "host.docker.internal:host-gateway"
       volumes:
@@ -114,7 +116,7 @@ services:
         - EXECUTOR=Local
         - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
         - AIRFLOW_CONN_DESTINATION_POSTGRES=postgres://postgres:secret@destination_postgres:5434/destination_db
-        - AIRFLOW__CORE__FERNET_KEY=sbtsn1hXWMBjQtRtIaJpsewOLKl-P5OHZCMpA2_eWWs=
+        - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY}
         - AIRFLOW__WEBSERVER__DEFAULT_USER_USERNAME=airflow
         - AIRFLOW__WEBSERVER__DEFAULT_USER_PASSWORD=password
         - AIRFLOW_WWW_USER_USERNAME=airflow
@@ -133,6 +135,8 @@ services:
       - postgres
     networks:
       - etl_network
+    env_file:
+      - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -146,7 +150,7 @@ services:
       - EXECUTOR=Local
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW_CONN_DESTINATION_POSTGRES=postgres://postgres:secret@destination_postgres:5434/destination_db
-      - AIRFLOW__CORE__FERNET_KEY=sbtsn1hXWMBjQtRtIaJpsewOLKl-P5OHZCMpA2_eWWs=
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY}
       - AIRFLOW__WEBSERVER__DEFAULT_USER_USERNAME=airflow
       - AIRFLOW__WEBSERVER__DEFAULT_USER_PASSWORD=password
       - AIRFLOW_WWW_USER_USERNAME=airflow
